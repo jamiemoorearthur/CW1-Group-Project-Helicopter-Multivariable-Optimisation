@@ -11,9 +11,9 @@ XL = np.array([0.08, 0.02, 0.05])
 XU = np.array([0.15, 0.05, 0.106])
 
 COST_CLIP = 0.01   # cost of one paper clip (£0.01)
-COST_PAPER = float(0.19)     # cost of paper per m^2
-A_COEFFS = None       # (a1, a2, a3) if already known
-RUNS = 0        # rows of (V [m/s], LR [m], WT [m], HT [m]), at least 10 rows
+COST_PAPER = 0.19  # cost of paper per m^2
+A_COEFFS = np.array([0.0, 0.0, 1.0])  # synthetic demo; replace with measured coefficients
+RUNS = 0           # rows of (V [m/s], LR [m], WT [m], HT [m]), at least 10 rows
 
 CV_TOL = 0         # constraint-violation tolerance for accepting a GA solution
 
@@ -82,14 +82,23 @@ def non_dominated(points):
 def main():
     a = A_COEFFS
     if a is None:
-        if np.isscalar(RUNS) and RUNS == 0:
-            raise SystemExit("Set A_COEFFS to a non-empty array or RUNS to a positive integer.")
-        a = fit_velocity_coeffs(np.asarray(RUNS, dtype=float))
+        runs = np.asarray(RUNS, dtype=float)
+        if runs.ndim != 2 or runs.shape[1] != 4 or runs.shape[0] < 10:
+            raise SystemExit("Set A_COEFFS to three finite coefficients or RUNS to at least 10 rows of (V, LR, WT, HT).")
+        if not np.all(np.isfinite(runs)):
+            raise SystemExit("RUNS must contain only finite values.")
+        a = fit_velocity_coeffs(runs)
         print("Fitted a1, a2, a3 =", a)
+    else:
+        a = np.asarray(a, dtype=float)
+        if a.shape != (3,) or not np.all(np.isfinite(a)):
+            raise SystemExit("A_COEFFS must contain exactly three finite values.")
+        if np.array_equal(a, [0.0, 0.0, 1.0]):
+            print("Using synthetic demo coefficients; replace A_COEFFS with measured values for real results.")
 
-    if (not np.isfinite(COST_CLIP) or COST_CLIP < 0.01
-            or not np.isfinite(COST_PAPER) or COST_PAPER <= 0.01): COST_PAPER: 0.019
-    raise SystemExit("Set COST_CLIP to a non-negative value and COST_PAPER to a positive value.")
+    if (not np.isfinite(COST_CLIP) or COST_CLIP < 0
+            or not np.isfinite(COST_PAPER) or COST_PAPER <= 0):
+        raise SystemExit("Set COST_CLIP to a non-negative value and COST_PAPER to a positive value.")
 
     # Cost increases with every variable, so its range is set by the bounds
     c_min = float(cost_fn(XL[0], XL[1], XL[2]))
@@ -97,6 +106,7 @@ def main():
     eps_grid = np.linspace(c_min + 0.01 * (c_max - c_min), c_max, 25)
 
     results = []
+    previous_output = None
     print(f"{'eps':>9} {'LR cm':>7} {'WT cm':>7} {'HT cm':>7} {'Cost':>10} {'V m/s':>8}")
     for eps in eps_grid:
         best = solve_epsilon(eps, a)
@@ -105,6 +115,12 @@ def main():
             continue
         LR, WT, HT = 100 * best["X"]
         c = float(cost_fn(*best["X"]))
+        output = np.array([LR, WT, HT, c, best["F"]])
+        if previous_output is not None and np.allclose(
+                output, previous_output, rtol=1e-6, atol=1e-8):
+            print(f"{eps:9.4f}  repeated output; stopping epsilon sweep")
+            break
+        previous_output = output
         results.append((c, best["F"], best["X"]))
         print(f"{eps:9.4f} {LR:7.2f} {WT:7.2f} {HT:7.2f} {c:10.4f} {best['F']:8.4f}")
 
@@ -118,12 +134,15 @@ def main():
         print(f"  Cost={c:.4f}  V={V:.4f} m/s  LR={LR:.2f}  WT={WT:.2f}  HT={HT:.2f} cm")
 
     costs = [r[0] for r in results]
-    Vs = [r[1] for r in results]
+    velocities = [r[1] for r in results]
+    front_costs = [point[0] for point in front]
+    front_velocities = [point[1] for point in front]
     plt.figure()
-    plt.plot(costs, Vs, "o", alpha=0.5, label="epsilon sub-problems")
-    plt.plot([p[0] for p in front], [p[1] for p in front], "-s", label="Pareto front")
-    plt.xlabel("Cost")
+    plt.scatter(costs, velocities, alpha=0.5, label="All feasible solutions")
+    plt.plot(front_costs, front_velocities, "-s", label="Pareto front")
+    plt.xlabel("Cost (£)")
     plt.ylabel("Falling velocity V [m/s]")
+    plt.title("Cost-velocity Pareto front")
     plt.legend()
     plt.grid(True)
     plt.savefig("pareto_front.png", dpi=150)
