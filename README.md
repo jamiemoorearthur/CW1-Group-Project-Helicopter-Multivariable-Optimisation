@@ -1,4 +1,4 @@
-# Cost–Performance Multi-Objective Optimisation
+# Cost–Performance Multi-Objective Optimisation for Helicopter
 
 This project explores the trade-off between **cost (£)** and **falling velocity (m/s)** using a Pareto-front representation. The plot compares candidate solutions so that lower-cost options can be evaluated against their falling-velocity performance.
 
@@ -30,7 +30,7 @@ The Pareto front helps make the trade-off visible and supports selecting a solut
 
 ## Repository figure
 
-Keep `pareto_front.png` in the same directory as this `README.md` so that the image renders correctly on GitHub.
+Keep `pareto_front.png` in the same directory as this `README.md` so that the image renders correctly on GitHub. Going to be updated propely at the final version of the project 
 
 ## Notes
 
