@@ -3,150 +3,46 @@ import matplotlib.pyplot as plt
 from pymoo.core.problem import Problem
 from pymoo.algorithms.soo.nonconvex.ga import GA
 from pymoo.optimize import minimize
-WR, WB, HB = 0.06, 0.12, 0.04
-N_ROTORS = 1          # as written in the cost equation; set to 2 to count both rotors
-
-# Design-variable bounds [m]: LR, WT, HT
-XL = np.array([0.08, 0.02, 0.05])
-XU = np.array([0.15, 0.05, 0.106])
-
-COST_CLIP = 0.01   # cost of one paper clip (£0.01)
-COST_PAPER = 0.19  # cost of paper per m^2
-A_COEFFS = np.array([0.0, 0.0, 1.0])  # synthetic demo; replace with measured coefficients
-RUNS = 0           # rows of (V [m/s], LR [m], WT [m], HT [m]), at least 10 rows
-
-CV_TOL = 0         # constraint-violation tolerance for accepting a GA solution
-
-
-def fit_velocity_coeffs(runs):
-    """Linear least-squares fit of a1, a2, a3 in V^2 LR^2 = a1 LR^3 + a2 WT HT + a3."""
-    V, LR, WT, HT = runs.T
-    M = np.column_stack([LR**3, WT * HT, np.ones_like(LR)])
-    coeffs, *_ = np.linalg.lstsq(M, V**2 * LR**2, rcond=None)
-    return coeffs
-
-
-def cost_fn(LR, WT, HT):
-    """Material cost: clip + paper * (tail + body + rotor areas)."""
-    return COST_CLIP + COST_PAPER * (WT * HT + WB * HB + N_ROTORS * WR * LR)
-
-
-class EpsilonSubproblem(Problem):
-    """min V(x)  s.t.  Cost(x) <= eps,  radicand >= 0."""
-
-    def __init__(self, eps, a):
+# Step 1: Set dimensions in metres. A 5 mm step means only buildable sizes are tested.
+WR, WB, HB, STEP = 0.06, 0.12, 0.04, 0.005
+XL = np.array([0.08, 0.02, 0.05])  # Minimum LR, WT, HT
+XU = np.array([0.15, 0.05, 0.106])  # Maximum LR, WT, HT
+A_COEFFS, COST_CLIP, COST_PAPER = np.array([0., 0., 1.]), 0.01, 0.19
+# A_COEFFS is synthetic: replace it with coefficients fitted from measured flight tests.
+# Step 2: Snap each design to the nearest grid point and calculate its material cost.
+def snap(x): return np.clip(np.round(np.asarray(x) / STEP) * STEP, XL, XU)
+def cost(x):
+    LR, WT, HT = x
+    return COST_CLIP + COST_PAPER * (WT * HT + WB * HB + WR * LR)
+# Step 3: Minimize predicted speed; reject designs over budget or with a negative radicand.
+class DesignProblem(Problem):
+    def __init__(self, budget):
         super().__init__(n_var=3, n_obj=1, n_ieq_constr=2, xl=XL, xu=XU)
-        self.eps = eps
-        self.a = a
-
+        self.budget = budget
     def _evaluate(self, X, out, *args, **kwargs):
-        LR, WT, HT = X[:, 0], X[:, 1], X[:, 2]
-        rad = self.a[0] * LR**3 + self.a[1] * WT * HT + self.a[2]
-        V = np.sqrt(np.maximum(rad, 1e-12)) / LR
-        out["F"] = V[:, None]
-        # pymoo convention: G <= 0 is feasible
-        out["G"] = np.column_stack([
-            cost_fn(LR, WT, HT) - self.eps,
-            -rad,
-        ])
-
-
-def solve_epsilon(eps, a, n_seeds=3, n_gen=200):
-    """Best feasible GA solution over several random seeds."""
-    best = None
-    for seed in range(n_seeds):
-        res = minimize(EpsilonSubproblem(eps, a),
-                       GA(pop_size=80),
-                       ("n_gen", n_gen),
-                       seed=seed, verbose=False)
-        if res.X is None or res.CV is None:
-            continue
-        cv = float(np.sum(res.CV))
-        if cv <= CV_TOL:
-            f = float(np.atleast_1d(res.F)[0])
-            if best is None or f < best["F"]:
-                best = {"X": np.asarray(res.X), "F": f}
-    return best
-
-
-def non_dominated(points):
-    """Keep points where V strictly drops as cost rises. points: (cost, V, x)."""
-    front, best_V = [], np.inf
-    for c, V, x in sorted(points, key=lambda p: p[0]):
-        if V < best_V - 1e-9:
-            front.append((c, V, x))
-            best_V = V
-    return front
-
-
+        LR, WT, HT = snap(X).T
+        rad = A_COEFFS[0] * LR**3 + A_COEFFS[1] * WT * HT + A_COEFFS[2]
+        out["F"] = (np.sqrt(np.maximum(rad, 1e-12)) / LR)[:, None]
+        out["G"] = np.column_stack([cost([LR, WT, HT]) - self.budget, -rad])
+# Step 4: Sweep possible budgets and use a genetic algorithm to find feasible designs.
 def main():
-    a = A_COEFFS
-    if a is None:
-        runs = np.asarray(RUNS, dtype=float)
-        if runs.ndim != 2 or runs.shape[1] != 4 or runs.shape[0] < 10:
-            raise SystemExit("Set A_COEFFS to three finite coefficients or RUNS to at least 10 rows of (V, LR, WT, HT).")
-        if not np.all(np.isfinite(runs)):
-            raise SystemExit("RUNS must contain only finite values.")
-        a = fit_velocity_coeffs(runs)
-        print("Fitted a1, a2, a3 =", a)
-    else:
-        a = np.asarray(a, dtype=float)
-        if a.shape != (3,) or not np.all(np.isfinite(a)):
-            raise SystemExit("A_COEFFS must contain exactly three finite values.")
-        if np.array_equal(a, [0.0, 0.0, 1.0]):
-            print("Using synthetic demo coefficients; replace A_COEFFS with measured values for real results.")
-
-    if (not np.isfinite(COST_CLIP) or COST_CLIP < 0
-            or not np.isfinite(COST_PAPER) or COST_PAPER <= 0):
-        raise SystemExit("Set COST_CLIP to a non-negative value and COST_PAPER to a positive value.")
-
-    # Cost increases with every variable, so its range is set by the bounds
-    c_min = float(cost_fn(XL[0], XL[1], XL[2]))
-    c_max = float(cost_fn(XU[0], XU[1], XU[2]))
-    eps_grid = np.linspace(c_min + 0.01 * (c_max - c_min), c_max, 25)
-
+    if np.array_equal(A_COEFFS, [0., 0., 1.]):
+        print("Warning: coefficients are synthetic; use measured test data for real results.")
+    low, high = cost(snap(XL)), cost(snap(XU))
     results = []
-    previous_output = None
-    print(f"{'eps':>9} {'LR cm':>7} {'WT cm':>7} {'HT cm':>7} {'Cost':>10} {'V m/s':>8}")
-    for eps in eps_grid:
-        best = solve_epsilon(eps, a)
-        if best is None:
-            print(f"{eps:9.4f}  no feasible solution found")
-            continue
-        LR, WT, HT = 100 * best["X"]
-        c = float(cost_fn(*best["X"]))
-        output = np.array([LR, WT, HT, c, best["F"]])
-        if previous_output is not None and np.allclose(
-                output, previous_output, rtol=1e-6, atol=1e-8):
-            print(f"{eps:9.4f}  repeated output; stopping epsilon sweep")
-            break
-        previous_output = output
-        results.append((c, best["F"], best["X"]))
-        print(f"{eps:9.4f} {LR:7.2f} {WT:7.2f} {HT:7.2f} {c:10.4f} {best['F']:8.4f}")
-
-    if not results:
-        raise SystemExit("No feasible solutions; check the cost data and coefficients.")
-
-    front = non_dominated(results)
-    print("\nNon-dominated (velocity-cost) front:")
-    for c, V, x in front:
-        LR, WT, HT = 100 * x
-        print(f"  Cost={c:.4f}  V={V:.4f} m/s  LR={LR:.2f}  WT={WT:.2f}  HT={HT:.2f} cm")
-
-    costs = [r[0] for r in results]
-    velocities = [r[1] for r in results]
-    front_costs = [point[0] for point in front]
-    front_velocities = [point[1] for point in front]
-    plt.figure()
-    plt.scatter(costs, velocities, alpha=0.5, label="All feasible solutions")
-    plt.plot(front_costs, front_velocities, "-s", label="Pareto front")
-    plt.xlabel("Cost (£)")
-    plt.ylabel("Falling velocity V [m/s]")
-    plt.title("Cost-velocity Pareto front")
-    plt.legend()
-    plt.grid(True)
-    plt.savefig("pareto_front.png", dpi=150)
-    plt.show()
-
-if __name__ == "__main__":
-    main()
+    for budget in np.linspace(low + 0.01 * (high - low), high, 20):
+        res = minimize(DesignProblem(budget), GA(pop_size=80), ("n_gen", 200), verbose=False)
+        if res.X is None or res.CV is None or float(np.sum(res.CV)) > 0: continue
+        x = snap(res.X)
+        results.append((cost(x), float(np.atleast_1d(res.F)[0])))
+    if not results: raise SystemExit("No feasible designs; check bounds and coefficients.")
+    # Step 5: Keep the Pareto front: lower speed without spending more.
+    results.sort()
+    front, best = [], np.inf
+    for c, v in results:
+        if v < best - 1e-9: front.append((c, v)); best = v
+    # Step 6: Plot the Pareto front (the best velocity found at each cost).
+    plt.plot(*np.array(front).T, "-s", label="Pareto front")
+    plt.xlabel("Cost (£)"); plt.ylabel("Falling velocity (m/s)")
+    plt.grid(True); plt.legend(); plt.savefig("pareto_front.png", dpi=150); plt.show()
+if __name__ == "__main__": main()
