@@ -2,13 +2,16 @@
 
 ## Project Overview
 
-This project investigates the application of **engineering optimisation and computational modelling** to the design of a paper helicopter, analysing the trade-off between manufacturing cost (£) and falling velocity (m/s).
+This project investigates the application of **engineering optimisation, computational modelling and experimental validation** to the design of a paper helicopter.
 
-The project formulates a multi-objective optimisation problem to identify paper helicopter configurations that balance economic efficiency with aerodynamic performance.
+The project formulates a multi-objective optimisation problem to investigate the trade-off between **assembly cost (paper area)** and **falling velocity (m/s)**.
 
 Using numerical optimisation, mathematical analysis and physical experimentation, the project evaluates candidate designs and investigates whether theoretically optimal configurations translate into improved real-world performance.
 
-The work combines applied mathematics, computational engineering, experimental validation and collaborative problem-solving.
+The work combines applied mathematics, computational engineering, multi-objective optimisation, experimental validation and collaborative problem-solving.
+
+**Module:** EMS726U/P – Engineering Design Optimisation and Decision Making  
+**Project:** CW1 – Paper Helicopter: Multi-objective Experiment Optimum Engineering Design
 
 ## Technology Stack
 
@@ -25,25 +28,25 @@ The work combines applied mathematics, computational engineering, experimental v
 
 The project investigates two competing engineering objectives:
 
-1. **Minimise manufacturing cost (£).**
-2. **Minimise falling velocity (m/s).**
+1. **Minimise assembly cost**, represented by the total paper area.
+2. **Minimise falling velocity (m/s)** to maximise autorotation effectiveness.
 
-The optimisation process evaluates candidate designs to identify configurations that provide the best balance between cost and aerodynamic performance.
+The optimisation process evaluates candidate designs to identify configurations that provide the best balance between material efficiency and aerodynamic performance.
 
 ### Pareto Front
 
 ![Pareto front showing cost versus falling velocity](pareto_front.png)
 
-*Figure 1. Pareto front illustrating the relationship between manufacturing cost (£) and falling velocity (m/s) across candidate paper helicopter designs.*
+*Figure 1. Pareto front illustrating the relationship between assembly cost and falling velocity across candidate paper helicopter designs.*
 
 ### Interpretation
 
 The Pareto front represents the set of non-dominated solutions across the two objectives.
 
-- **Cost (x-axis):** Lower values are preferable when minimising manufacturing expenditure.
+- **Assembly cost (x-axis):** Lower values are preferable when minimising material usage.
 - **Falling velocity (y-axis):** Lower values are preferable for achieving a slower descent.
-- **Trade-off:** Reducing falling velocity can require additional material or manufacturing expenditure.
-- **Design selection:** The preferred configuration depends on the acceptable budget and required aerodynamic performance.
+- **Trade-off:** Reducing falling velocity can require additional material and therefore increased assembly cost.
+- **Design selection:** The preferred configuration depends on the acceptable material cost and required aerodynamic performance.
 
 A solution is Pareto-dominated if another solution performs at least as well in both objectives and strictly better in one. Solutions on the Pareto front are non-dominated, meaning improving one objective requires sacrificing performance in the other.
 
@@ -108,4 +111,40 @@ The physical testing identified several factors that could influence the accurac
 - **Mass inconsistencies:** Models were not individually weighed, and paper density and mass variations were not fully accounted for.
 - **Paper clip positioning:** The location of the paper clips was not consistently controlled.
 - **External forces:** Air resistance, breezes and unintended forces during release influenced the descent.
-- **Measurement accuracy:** Video-based timing at 120 FPS still
+- **Measurement accuracy:** Video-based timing at 120 FPS still introduced finite measurement resolution and potential timing uncertainty.
+
+These limitations highlight the importance of controlled experimental conditions and improved measurement techniques when validating theoretical engineering models.
+
+## Engineering Skills Demonstrated
+
+| Skill | Application |
+|---|---|
+| Mathematical Modelling | Deriving and applying engineering equations |
+| Multi-objective Optimisation | Analysing competing design objectives |
+| Computational Engineering | Implementing numerical optimisation in Python |
+| Algorithmic Analysis | Investigating Pareto optimality and KKT conditions |
+| Experimental Design | Constructing and testing physical prototypes |
+| Data Analysis | Comparing theoretical and experimental results |
+| Technical Reporting | Documenting engineering methodology and findings |
+| Collaborative Engineering | Working within a multidisciplinary project team |
+
+## Project Team
+
+**Module:** EMS726U/P – Engineering Design Optimisation and Decision Making
+
+| Student | Student ID |
+|---|---|
+| Lulvinne Ken Victoria | 261043158 |
+| Daniel Thomas Henry Hyatt | 260659244 |
+| Ishak Tritri | 260997881 |
+| Jamie Kofi Moore-Arthur | 260459149 |
+| Inayat Ali | 260989093 |
+| Maisam Faizey | 220651642 |
+
+## Academic Context
+
+This project was completed as part of the MSc Biomedical Engineering with Digital Healthcare programme at Queen Mary University of London.
+
+It demonstrates the application of engineering design principles, computational optimisation, applied mathematics and experimental validation to a practical engineering problem.
+
+**Key outcome:** Investigating how multi-objective optimisation can support engineering design decisions when aerodynamic performance and material efficiency are competing objectives.
